@@ -5,13 +5,14 @@
 #endif
 
 #include "eq_platform.h"
+#include <math.h>
 
-//#define _LINUX_
+#define _LINUX_
 #ifdef _LINUX_
 	#include <sys/stat.h>
 #endif
 
-#define _WIN_
+//#define _WIN_
 #ifdef _WIN_
 	#include <windows.h>
 	#include <stdio.h>
@@ -24,8 +25,8 @@ const int SCREEN_HEIGHT = 480;
 /*
 	TODO(pipecaniza):
 		* Test Draw a rectangle......Done
-		* Test sin wave sound?
-		* Load and unload lib........Done (Linux)
+		* Test sin wave sound?.......
+		* Load and unload lib........Done (Linux and Windows, pending copy lib to avoid compilation errors)
 		* Define types...............Done
 		* lock frames................Done
 
@@ -46,8 +47,10 @@ typedef s32 b32;
 
 #define false 0
 #define true 1
+#define Pi32 3.14159265359
 
-
+#define local_persist static
+#define global_persist static
 #define function static
 
 struct {
@@ -60,6 +63,14 @@ struct {
 	s64 lastModificationTime;
 } typedef sdl_FileInfo;
 
+
+
+struct {
+	u8 channels;
+	u8 formatSizeInBytes;
+	u16 samples;
+	u16 frequency;
+} typedef platform_AudioOutput;
 
 function b32
 CheckIfFileChanged(sdl_FileInfo *fileInfo) 
@@ -136,20 +147,14 @@ DrawRect(void *pixels, s32 pitch, s32 x, s32 y, s32 h, s32 w, s32 ARGB)
 int main(int argc, char* args[])
 {
 	// Initialize SDL
-	if (SDL_Init(SDL_INIT_VIDEO ) < 0)
-	{
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
 		printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
-	}
-	else
-	{
+	} else {
 		// Create window
 		SDL_Window* window = SDL_CreateWindow("SDL Tutorial", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-		if (window == NULL)
-		{
+		if (window == NULL) {
 			printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
-		}
-		else
-		{
+		} else {
 			// SDL_PIXELFORMAT_ARGB8888
 			// SDL_PIXELTYPE_PACKED32
 			// SDL_PACKEDORDER_ARGB
@@ -165,25 +170,49 @@ int main(int argc, char* args[])
 			SDL_Event windowEvent;			
 			//SDL_Rect rect = {0, 0, 50, 50};
 
+			r32 expectedFramesPerSeconds = 30.0f;
+
+			/* Audio test init */
+			platform_AudioOutput audioOutput = {};
+			audioOutput.frequency = 44100;
+			audioOutput.channels = 1;
+			audioOutput.formatSizeInBytes = sizeof(u16);
+			audioOutput.samples = audioOutput.channels * audioOutput.formatSizeInBytes;//check this
+
+			SDL_AudioSpec desiredAudioSpec = {};
+			SDL_AudioSpec obtainedAudioSpec = {};
+			SDL_AudioDeviceID audioDeviceId;
+			{
+				desiredAudioSpec.freq = audioOutput.frequency;
+				desiredAudioSpec.format = AUDIO_S16SYS;
+				desiredAudioSpec.channels = audioOutput.channels;
+				desiredAudioSpec.samples = audioOutput.samples;
+				audioDeviceId = SDL_OpenAudioDevice(NULL, 0, &desiredAudioSpec, &obtainedAudioSpec, 0);
+				SDL_PauseAudioDevice(audioDeviceId, 0);
+			}		
+
+			//s32 audioFormatInBytes = SDL_AUDIO_BITSIZE(desiredAudioSpec.format) / 8;
+			u32 audioBufferSizeInBytes = audioOutput.frequency / expectedFramesPerSeconds * audioOutput.channels * audioOutput.formatSizeInBytes*1;
+			//todo(pipecaniza): change this to use an arena
+			u16 *audioBuffer = (u16 *)malloc(audioBufferSizeInBytes);
+			u32 audioBufferSize = audioBufferSizeInBytes / sizeof(u16);
+
 			//C:\\Users\\pipec\\OneDrive\\Documentos\\source\\sdl_engine_v1\\build\\win\\engine.dll
 			//"/home/pipecaniza/Source/sdl_engine_v1/build/linux/engine.so"
 			sdl_FileInfo gameCodeFileInfo = (sdl_FileInfo){"C:\\Users\\pipec\\OneDrive\\Documentos\\source\\sdl_engine_v1\\build\\win\\engine.dll", 0};
 			sdl_GameCode gameCode = {};
 
 			int color = 0;
-			while (true) 
-			{
+			while (true) {
 				r64 lastTick = SDL_GetTicks64();
 
-				if (CheckIfFileChanged(&gameCodeFileInfo))
-				{
+				if (CheckIfFileChanged(&gameCodeFileInfo)) {
 					UnLoadGameCode(&gameCode);
 					gameCode = LoadGameCode(gameCodeFileInfo.path, "game_GameUpdateAndRender");
 				}
 
-
-				while (SDL_PollEvent(&windowEvent))
-				{
+				printf("%s",SDL_GetError());
+				while (SDL_PollEvent(&windowEvent)) {
 					switch (windowEvent.type) {
 						case SDL_QUIT:
 							SDL_Quit();
@@ -192,8 +221,7 @@ int main(int argc, char* args[])
 				} 
 				//++color;
 
-				if(gameCode.updateAndRender)
-				{
+				if(gameCode.updateAndRender) {
 					gameCode.updateAndRender();
 				}
 
@@ -224,13 +252,40 @@ int main(int argc, char* args[])
                 //Update screen
                 SDL_RenderPresent( renderer );
 
+				
+				//Audio
+				
 				{
-					r32 workSecondsElapsed = (r32)(SDL_GetTicks64() - lastTick) / 1000.0f;
-					r32 expectedFramesPerSeconds = 30.0f;
+					s32 toneHz = 200;					
+					local_persist r32 tSine;
+					s16 toneVolume = 0;
+					s32 wavePeriod = audioOutput.frequency / toneHz;
+
+					u16 *sampleOut = audioBuffer;
+					for(s32 sampleIndex = audioBufferSize / audioOutput.channels;
+						sampleIndex > 0; // stereo
+						--sampleIndex)
+					{
+						// TODO(casey): Draw this out for people
+						r32 sineValue = sinf(tSine);
+						s16 sampleValue = (s16)(sineValue * toneVolume);
+						*sampleOut++ = sampleValue;
+						*sampleOut++ = sampleValue;
+
+						tSine += 2.0f*Pi32*1.0f/(r32)wavePeriod;
+					}
+
+					s32 result = SDL_QueueAudio(audioDeviceId, audioBuffer, audioBufferSize);
+					if (result < 0) {
+						printf("Something went wrong in audio! SDL_Error: %s\n", SDL_GetError());
+					}
+				}
+
+				{
+					r32 workSecondsElapsed = (r32)(SDL_GetTicks64() - lastTick) / 1000.0f;					
 					r32 expectedSecondsPerFrame = 1.0f / expectedFramesPerSeconds;
 
-					if (workSecondsElapsed < expectedSecondsPerFrame)
-					{
+					if (workSecondsElapsed < expectedSecondsPerFrame) {
 						u32 millisecondsToWait = (expectedSecondsPerFrame - workSecondsElapsed) * 1000.0f;
 						printf("To Wait:%d\n", millisecondsToWait);
 						SDL_Delay((u32)millisecondsToWait);
