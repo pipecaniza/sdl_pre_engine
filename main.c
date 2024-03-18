@@ -1,22 +1,18 @@
-#ifdef __MINGW32__
-#include <SDL.h>
+#ifdef _WIN64
+ #include <SDL.h>
+ #include <windows.h>
+ #include <WinBase.h>
 #else
-#include <SDL2/SDL.h>
+ #include <SDL2/SDL.h>
+ #include <sys/stat.h>
 #endif
 
 #include "eq_platform.h"
+
+//todo(pipecaniza): remove this
 #include <math.h>
-
-#define _LINUX_
-#ifdef _LINUX_
-	#include <sys/stat.h>
-#endif
-
-//#define _WIN_
-#ifdef _WIN_
-	#include <windows.h>
-	#include <stdio.h>
-#endif
+#include <stdint.h>
+#include <stdio.h>
 
 // Screen dimension constants
 const int SCREEN_WIDTH = 640;
@@ -144,7 +140,7 @@ DrawRect(void *pixels, s32 pitch, s32 x, s32 y, s32 h, s32 w, s32 ARGB)
 	}
 }
 
-int main(int argc, char* args[])
+s32 main(s32 argc, char* args[])
 {
 	// Initialize SDL
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
@@ -161,7 +157,7 @@ int main(int argc, char* args[])
 			// SDL_PACKEDLAYOUT_8888
 			SDL_Renderer *renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED );
 			SDL_RendererInfo info = {};
-			int result = SDL_GetRendererInfo(renderer, &info);
+			s32 result = SDL_GetRendererInfo(renderer, &info);
 			SDL_SetRenderDrawColor( renderer, 0xFF, 0xFF, 0xFF, 0xFF );
 			// The surface contained by the window
 			SDL_Surface* screenSurface = SDL_GetWindowSurface(window);
@@ -202,7 +198,7 @@ int main(int argc, char* args[])
 			sdl_FileInfo gameCodeFileInfo = (sdl_FileInfo){"C:\\Users\\pipec\\OneDrive\\Documentos\\source\\sdl_engine_v1\\build\\win\\engine.dll", 0};
 			sdl_GameCode gameCode = {};
 
-			int color = 0;
+			s32 color = 0;
 			while (true) {
 				r64 lastTick = SDL_GetTicks64();
 
@@ -227,7 +223,7 @@ int main(int argc, char* args[])
 
 
 				void *pixels;
-				int pitch;
+				s32 pitch;
 				SDL_LockTexture(texture, 0, &pixels, &pitch);
 				//rect.x = (rect.x + 1) % SCREEN_WIDTH;
 				//rect.y = (rect.y + 1) % SCREEN_HEIGHT;
@@ -239,7 +235,7 @@ int main(int argc, char* args[])
 				//SDL_memset(pixels, color, SCREEN_HEIGHT * pitch);
 				DrawRect(pixels, pitch, 10, 20, 100, 100, 0xAA0000FF);
 				DrawRect(pixels, pitch, 40, 40, 100, 100, 0x05FF00FF);
-				SDL_UpdateTexture(texture, 0, pixels, pitch);
+				//SDL_UpdateTexture(texture, 0, pixels, pitch);
 
     			SDL_UnlockTexture(texture);
 				
@@ -256,9 +252,9 @@ int main(int argc, char* args[])
 				//Audio
 				
 				{
-					s32 toneHz = 200;					
+					s32 toneHz = 1000;					
 					local_persist r32 tSine;
-					s16 toneVolume = 0;
+					s16 toneVolume = 3000;
 					s32 wavePeriod = audioOutput.frequency / toneHz;
 
 					u16 *sampleOut = audioBuffer;
