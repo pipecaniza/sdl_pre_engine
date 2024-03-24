@@ -170,12 +170,15 @@ s32 main(s32 argc, char* args[])
 
 			/* Audio test init */
 			platform_AudioOutput audioOutput = {};
-			audioOutput.frequency = 44100;
+			audioOutput.frequency = 48000;
 			audioOutput.channels = 1;
 			audioOutput.formatSizeInBytes = sizeof(u16);
 			audioOutput.samples = audioOutput.channels * audioOutput.formatSizeInBytes;//check this
 
 			SDL_AudioSpec desiredAudioSpec = {};
+
+			int r = SDL_GetAudioDeviceSpec(0, 0, &desiredAudioSpec);
+
 			SDL_AudioSpec obtainedAudioSpec = {};
 			SDL_AudioDeviceID audioDeviceId;
 			{
@@ -188,7 +191,7 @@ s32 main(s32 argc, char* args[])
 			}		
 
 			//s32 audioFormatInBytes = SDL_AUDIO_BITSIZE(desiredAudioSpec.format) / 8;
-			u32 audioBufferSizeInBytes = audioOutput.frequency / expectedFramesPerSeconds * audioOutput.channels * audioOutput.formatSizeInBytes*1;
+			u32 audioBufferSizeInBytes = audioOutput.frequency / expectedFramesPerSeconds * audioOutput.channels * audioOutput.formatSizeInBytes*2;
 			//todo(pipecaniza): change this to use an arena
 			u16 *audioBuffer = (u16 *)malloc(audioBufferSizeInBytes);
 			u32 audioBufferSize = audioBufferSizeInBytes / sizeof(u16);
@@ -201,13 +204,14 @@ s32 main(s32 argc, char* args[])
 			s32 color = 0;
 			while (true) {
 				r64 lastTick = SDL_GetTicks64();
+				printf("Early frame AudioSize: %i\n",  SDL_GetQueuedAudioSize(audioDeviceId));
 
 				if (CheckIfFileChanged(&gameCodeFileInfo)) {
 					UnLoadGameCode(&gameCode);
 					gameCode = LoadGameCode(gameCodeFileInfo.path, "game_GameUpdateAndRender");
 				}
 
-				printf("%s",SDL_GetError());
+				//printf("%s",SDL_GetError());
 				while (SDL_PollEvent(&windowEvent)) {
 					switch (windowEvent.type) {
 						case SDL_QUIT:
@@ -250,7 +254,6 @@ s32 main(s32 argc, char* args[])
 
 				
 				//Audio
-				
 				{
 					s32 toneHz = 1000;					
 					local_persist r32 tSine;
@@ -266,15 +269,18 @@ s32 main(s32 argc, char* args[])
 						r32 sineValue = sinf(tSine);
 						s16 sampleValue = (s16)(sineValue * toneVolume);
 						*sampleOut++ = sampleValue;
-						*sampleOut++ = sampleValue;
+						//*sampleOut++ = sampleValue;
 
 						tSine += 2.0f*Pi32*1.0f/(r32)wavePeriod;
 					}
 
+					//u32 queuedAudioSize =;
+					printf("Pre queue AudioSize: %i\n",  SDL_GetQueuedAudioSize(audioDeviceId));
 					s32 result = SDL_QueueAudio(audioDeviceId, audioBuffer, audioBufferSize);
 					if (result < 0) {
 						printf("Something went wrong in audio! SDL_Error: %s\n", SDL_GetError());
 					}
+					printf("After queue AudioSize: %i\n",  SDL_GetQueuedAudioSize(audioDeviceId));			
 				}
 
 				{
