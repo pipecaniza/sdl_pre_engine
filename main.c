@@ -264,7 +264,7 @@ s32 main(s32 argc, char* args[])
 			u8 audioFramesLatency = 3;
 			u32 audioBufferSizeInBytes = audioOutput.frequency / expectedFramesPerSeconds * audioOutput.channels * audioOutput.formatSizeInBytes*audioFramesLatency;
 			//todo(pipecaniza): change this to use an arena
-			u16 *audioBuffer = (u16 *)malloc(audioBufferSizeInBytes);
+			s16 *audioBuffer = (s16 *)malloc(audioBufferSizeInBytes);
 			u32 audioBufferSize = audioBufferSizeInBytes / audioOutput.formatSizeInBytes;
 
 			// Remove this
